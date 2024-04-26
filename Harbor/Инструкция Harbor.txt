@@ -1,0 +1,41 @@
+
+
+*** LINKS ***
+https://goharbor.io/
+https://goharbor.io/docs/main/administration/vulnerability-scanning/pluggable-scanners/
+https://goharbor.io/docs/main/administration/vulnerability-scanning/configure-custom-certs/
+https://www.aquasec.com/products/trivy/
+https://github.com/aquasecurity/trivy
+https://hub.docker.com/r/goharbor/trivy-adapter-photon
+
+
+*** VERSION ***
+Используемая версия trivy-adapter-photon - 2.8.3
+
+
+*** DOCKERFILE ***
+Dockerfile используется для сборки собственного образа, основанного на официальном, но с докинутыми внутрь скриптами и сертификатами (по необходимости). В каталоге scanner лежат все необходимые скрипты. Для корректной сборки образа Dockerfile и каталог scanner должны лежать рядом.
+
+
+*** КАК РАБОТАЕТ ***
+Trivy пишет файлы в каталог /home/scanner/.cache/reports
+Скрипт inotifywait.sh работает в фоне и следит за появлением новых файлов. При появлении файла, скрипт создает ссылку на него в каталог /home/scanner/reports/
+После того, как файл сформировался и отправился в харбор, триви его удаляет. За этим следит фоновый скрипт inotifywaitdel.sh, который запускает скрипт parser.sh
+Скрипт parser.sh парсит из файла репорта некоторые данные для отправки в DefectDOJO и засылает отчет. После работы скрипт удаляет файл
+
+
+*** ОСОБЕННОСТИ ***
+Скрипты entrypoint.sh, inotifywait.sh и inotifywaitdel.sh остаются без изменений.
+
+Скрипт parser.sh нужно отредактировать под себя - в зависимости от вашей структуры именования файлов образов, загружаемых в Harbor, может потребоваться изменить команды получения данных из файла репорта. Также для отправки в DefectDOJO нужно указать свои адрес, токен и csrf.
+
+
+
+
+
+
+
+
+
+
+
