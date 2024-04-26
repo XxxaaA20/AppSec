@@ -1,0 +1,2 @@
+https://semgrep.dev/explore
+https://github.com/semgrep/semgrep

@@ -1,0 +1,3 @@
+Забираем себе файлы из официального репозитория Gitleaks https://github.com/gitleaks/gitleaks и правим файл Dockerfile, удаляя из него строку ENTRYPOINT ["gitleaks"]
+
+Cобираем образ командой docker build -t <image_name> .
