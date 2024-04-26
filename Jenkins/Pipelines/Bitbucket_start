@@ -1,0 +1,167 @@
+pipeline {
+    agent any
+    stages {
+        stage('Check Repo Link0') { // Нужная ссылка в bitbucket пишется рандомным образом в одну из двух переменных, поэтому проверяем обе и получаем нужное нам значение
+            when {
+                expression{
+                    return "${RepoLinkName0}" == '["http"]'
+                }
+            }
+            steps {
+                script {
+                    LinkToDownloadRepo_0 = "${LinkToDownloadRepo0_0}"
+                }
+                echo "LinkToDownloadRepo_0 = ${LinkToDownloadRepo0_0}"
+            }
+        }
+        
+        stage('Check Repo Link1') {
+            when {
+                expression{
+                    return "${RepoLinkName1}" == '["http"]'
+                }
+            }
+            steps {
+                script {
+                    LinkToDownloadRepo_0 = "${LinkToDownloadRepo1_0}"
+                }
+                echo "LinkToDownloadRepo1_0 = ${LinkToDownloadRepo1_0}"
+            }
+        }
+        
+        stage('Download Repo') { // Скачиваем репозиторий и получаем некоторые значения
+            when {
+                anyOf {
+                    expression{"${bitbucketBranch}" == 'master' || "${bitbucketBranch}" == 'main' || "${bitbucketBranch}" == 'prod' || "${bitbucketBranch}" == 'develop' || "${bitbucketBranch}" == 'dev'}
+                }
+            }
+            steps {
+                echo "RepoLinkName0 = ${RepoLinkName0}"
+                echo "RepoLinkName1 = ${RepoLinkName1}"
+                script {
+                    withCredentials([string(credentialsId: 'BitBucketAPIToken', variable: 'TOKI')]) {
+                        sh "git clone --branch '${bitbucketBranch}' -c http.extraHeader='${TOKI}' '${LinkToDownloadRepo_0}'"
+                    }
+                    projectFolder0 = sh (script: 'ls', returnStdout: true) // Получаю каталог скачанного проекта
+                    projectFolder = sh (script: "/opt/scripts/jenkins/projectFolder.sh '${projectFolder0}'", returnStdout: true) // Получаю каталог скачанного проекта без переноса строки
+                    serviceName = "bitbucket"
+                }
+                echo "projectFolder0 = ${projectFolder0}"
+                echo "projectFolder = ${projectFolder}"
+                echo "serviceName = ${serviceName}"
+            }
+        }
+
+        stage('Get variables from link') {
+            // Проверяем, в какую ветку были внесены изменения и отбираем только ветки master и dev
+            when {
+                anyOf {
+                    expression{"${bitbucketBranch}" == 'master' || "${bitbucketBranch}" == 'main' || "${bitbucketBranch}" == 'prod' || "${bitbucketBranch}" == 'develop' || "${bitbucketBranch}" == 'dev'}
+                }
+            }
+            // Задаем переменные для дальнейшего использования
+            steps {
+                script {
+                    LinkToCreateFolder = "${LinkForDojoCodeManagement}" // Ссылка для создания каталогов в Jenkins
+                    LinkForDojoCodeManagement = "${LinkToCreateFolder}/" //ссылка на репозиторий без .git на конце
+                    
+                    tmp_param4 = sh (script: '/opt/scripts/jenkins/sedLink4.sh ${LinkForDojoCodeManagement}', returnStdout: true) //Убираем начало https://stash.com/projects\, перенос строки в конце и добавляем подпись -bitbucket в корневой каталог
+                    LinkToProjectJob = tmp_param4 // Ссылка для того, чтобы стартовая джоба запустила пайпы в нужном проекте
+                }
+            }
+        }
+
+        stage('Create Directory For Project') {
+            // Проверяем, в какую ветку были внесены изменения и отбираем только ветки master и dev
+            when {
+                anyOf {
+                    expression{"${bitbucketBranch}" == 'master' || "${bitbucketBranch}" == 'main' || "${bitbucketBranch}" == 'prod' || "${bitbucketBranch}" == 'develop' || "${bitbucketBranch}" == 'dev'}
+                }
+            }
+            // Создаем в Jenkins каталог для проекта и пайплайны
+            steps {
+                echo "LinkToCreateFolder = ${LinkToCreateFolder}"
+                script {
+                    sh "/opt/scripts/jenkins/createNewProject.sh '${LinkToCreateFolder}'"
+                }
+            }
+        }
+
+        stage('INFO') {
+            // Проверяем, в какую ветку были внесены изменения и отбираем только ветки master и dev
+            when {
+                anyOf {
+                    expression{"${bitbucketBranch}" == 'master' || "${bitbucketBranch}" == 'main' || "${bitbucketBranch}" == 'prod' || "${bitbucketBranch}" == 'develop' || "${bitbucketBranch}" == 'dev'}
+                }
+            }
+            // Выводим на экран используемые переменные чисто для инфо
+            steps {
+                echo "============= INFO ============="
+                echo "LinkToCreateFolder = ${LinkToCreateFolder}"
+                echo "SourceRepoHomepage = ${LinkForDojoCodeManagement}"
+                echo "BitBucketBranch = ${bitbucketBranch}"
+                echo "LinkToProjectJob = ${LinkToProjectJob}"
+                echo "BitBucketSourceRepoName = ${Product_name}"
+                echo "BitBucketSourceRepoHttpUrl = ${LinkToDownloadRepo_0}"
+                echo "Product_type = ${Product_type}"
+                echo "Product_name = ${Product_name}"
+                // echo "WORKSPACE = ${WORKSPACE}"
+                // echo "JENKINS_HOME = ${JENKINS_HOME}"
+                // echo "JOB_NAME = ${JOB_NAME}"
+                // echo "JOB_BASE_NAME = ${JOB_BASE_NAME}"
+                echo "============= INFO ============="
+            }
+        }
+
+        stage('Succes! Start Project Pipelines') {
+            // Проверяем, в какую ветку были внесены изменения и отбираем только ветки master и dev
+            when {
+                anyOf {
+                    expression{"${bitbucketBranch}" == 'master' || "${bitbucketBranch}" == 'main' || "${bitbucketBranch}" == 'prod' || "${bitbucketBranch}" == 'develop' || "${bitbucketBranch}" == 'dev'}
+                }
+            }
+            // Запускается цепочка пайплайнов в каталоге проекта в Jenkins и отправляется сообщение в почту о запуске
+            steps {
+*                mail bcc: '', body: "Start pipeline: '${JOB_NAME}'_'${BUILD_NUMBER}'. \n Service: '${LinkToProjectJob}'. \n Branch:'${bitbucketBranch}'", cc: '', from: '', replyTo: '', subject: "'${JOB_NAME}'_'${BUILD_NUMBER}' - started", to: 'user@mail.com'
+                build job: "${LinkToProjectJob}/1_Gitleaks", wait: false, parameters: [string(name: 'SourceRepoHttpUrl', value: "${LinkToDownloadRepo_0}"), string(name: 'SourceRepoName', value: "${Product_name}"), string(name: 'Branch', value: "${bitbucketBranch}"), string(name: 'MergeRequestLastCommit', value: "${commitHash}"), string(name: 'SourceRepoHomepage', value: "${LinkForDojoCodeManagement}"), string(name: 'Product_type', value: "${Product_type}"), string(name: 'Product_name', value: "${Product_name}"), string(name: 'projectFolder', value: "${projectFolder}"), string(name: 'serviceName', value: "${serviceName}")]
+            }
+        }
+
+        stage('Not Master or Dev') {
+            // Проверяем, в какую ветку были внесены изменения, если ветка не master и не dev, то выводим сообщение и переменные с веткой и названием проекта
+            when {
+                anyOf {
+                    expression{"${bitbucketBranch}" != 'master' && "${bitbucketBranch}" != 'main' && "${bitbucketBranch}" != 'prod' && "${bitbucketBranch}" != 'develop' && "${bitbucketBranch}" != 'dev'}
+                }
+            }
+            steps {
+                echo "It is not MASTER or DEV branch. Skipping Job"
+                echo "bitbucketBranch = ${bitbucketBranch}"
+                echo "LinkForDojoCodeManagement = ${LinkForDojoCodeManagement}"
+            }
+        }
+    }
+    
+    post {
+        // Если пайплайн зафейлился, отправляем сообщение в почту
+        failure {
+*            mail bcc: '', body: " Pipeline '${JOB_NAME}'_'${BUILD_NUMBER}' of service '${LinkToProjectJob}' - FAILED. Link: '${JOB_URL}'", cc: '', from: '', replyTo: '', subject: "FAILED", to: 'user@mail.com'
+        }
+        // Чистим рабочие каталоги после завершения работы пайплайна
+        always {
+            cleanWs()
+            dir("/var/lib/jenkins/workspace/${JOB_NAME}") {
+                deleteDir()
+            }
+            dir("/var/lib/jenkins/workspace/${JOB_NAME}@tmp") {
+                deleteDir()
+            }
+            dir("/var/lib/jenkins/workspace/${JOB_NAME}@2") {
+                deleteDir()
+            }
+            dir("/var/lib/jenkins/workspace/${JOB_NAME}@2@tmp") {
+                deleteDir()
+            }
+        }
+    }
+}

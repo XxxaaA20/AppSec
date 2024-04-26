@@ -1,0 +1,124 @@
+pipeline {
+    agent any
+    stages {
+        stage('Get variables from link') {
+            // Проверяем, в какую ветку были внесены изменения и отбираем только ветки master и dev
+            when {
+                anyOf {
+                    expression{"${gitlabBranch}" == 'master' || "${gitlabBranch}" == 'main' || "${gitlabBranch}" == 'prod' || "${gitlabBranch}" == 'develop' || "${gitlabBranch}" == 'dev'}
+                }
+            }
+            // Задаем переменные для дальнейшего использования
+            steps {
+                script {
+                    LinkToCreateFolder = "${gitlabSourceRepoHomepage}"
+                    LinkForDojoCodeManagement = LinkToCreateFolder+"/-/tree/${gitlabBranch}" //ссылка на репозиторий без .git на конце
+
+                    tmp_param4 = sh (script: '/opt/scripts/jenkins/sedLink4.sh ${gitlabSourceRepoHttpUrl}', returnStdout: true) //Убираем начало https://gitlab.com  и конец .git, чтобы запустить нужный проект
+                    LinkToProjectJob = tmp_param4 // Ссылка для того, чтобы стартовая джоба запустила пайпы в нужном проекте
+
+                    tmp_param5 = sh (script: '/opt/scripts/jenkins/sedProductType.sh ${gitlabSourceRepoHttpUrl}', returnStdout: true) // Получаем из ссылки название неймспейса
+                    Product_type = tmp_param5
+
+                    tmp_param6 = sh (script: '/opt/scripts/jenkins/sedProductName.sh ${gitlabSourceRepoHttpUrl}', returnStdout: true) // Получаем весь путь после названия неймспейса
+                    Product_name = tmp_param6
+
+                    serviceName = "gitlab"
+                    projectFolder = "empty"
+                }
+            }
+        }
+
+        stage('Create Directory For Project') {
+            // Проверяем, в какую ветку были внесены изменения и отбираем только ветки master и dev
+            when {
+                anyOf {
+                    expression{"${gitlabBranch}" == 'master' || "${gitlabBranch}" == 'main' || "${gitlabBranch}" == 'prod' || "${gitlabBranch}" == 'develop' || "${gitlabBranch}" == 'dev'}
+                }
+            }
+            // Создаем в Jenkins каталог для проекта и пайплайны
+            steps {
+                echo "LinkToCreateFolder = ${LinkToCreateFolder}"
+                script {
+                    sh "/opt/scripts/jenkins/createNewProject.sh '${LinkToCreateFolder}'"
+                }
+            }
+        }
+
+        stage('Pipeline Done') {
+            // Проверяем, в какую ветку были внесены изменения и отбираем только ветки master и dev
+            when {
+                anyOf {
+                    expression{"${gitlabBranch}" == 'master' || "${gitlabBranch}" == 'main' || "${gitlabBranch}" == 'prod' || "${gitlabBranch}" == 'develop' || "${gitlabBranch}" == 'dev'}
+                }
+            }
+            // Выводим на экран используемые переменные чисто для инфо
+            steps {
+                echo "============= INFO ============="
+                echo "LinkToCreateFolder = ${LinkToCreateFolder}"
+                echo "LinkForDojoCodeManagement = ${LinkForDojoCodeManagement}"
+                echo "gitlabBranch = ${gitlabBranch}"
+                echo "LinkToProjectJob = ${LinkToProjectJob}"
+                echo "gitlabSourceRepoName = ${gitlabSourceRepoName}"
+                echo "gitlabSourceNamespace = ${gitlabSourceNamespace}"
+                echo "gitlabSourceRepoHttpUrl = ${gitlabSourceRepoHttpUrl}"
+                // echo "WORKSPACE = ${WORKSPACE}"
+                // echo "JENKINS_HOME = ${JENKINS_HOME}"
+                // echo "JOB_NAME = ${JOB_NAME}"
+                // echo "JOB_BASE_NAME = ${JOB_BASE_NAME}"
+                echo "============= INFO ============="
+            }
+        }
+
+        stage('Succes! Start Project Pipelines') {
+            // Проверяем, в какую ветку были внесены изменения и отбираем только ветки master и dev
+            when {
+                anyOf {
+                    expression{"${gitlabBranch}" == 'master' || "${gitlabBranch}" == 'main' || "${gitlabBranch}" == 'prod' || "${gitlabBranch}" == 'develop' || "${gitlabBranch}" == 'dev'}
+                }
+            }
+            // Запускается цепочка пайплайнов в каталоге проекта в Jenkins и отправляется сообщение в почту о запуске
+            steps {
+*                mail bcc: '', body: "Start pipeline: '${JOB_NAME}'_'${BUILD_NUMBER}'. \n Service: '${LinkToProjectJob}'. \n Branch:'${gitlabBranch}'", cc: '', from: '', replyTo: '', subject: "'${JOB_NAME}'_'${BUILD_NUMBER}' - started", to: 'user@mail.com'
+                build job: "${LinkToProjectJob}/1_Gitleaks", wait: false, parameters: [string(name: 'SourceRepoHttpUrl', value: "${gitlabSourceRepoHttpUrl}"), string(name: 'SourceRepoName', value: "${gitlabSourceRepoName}"), string(name: 'Branch', value: "${gitlabBranch}"), string(name: 'MergeRequestLastCommit', value: "${gitlabMergeRequestLastCommit}"), string(name: 'SourceRepoHomepage', value: "${LinkForDojoCodeManagement}"), string(name: 'Product_type', value: "${Product_type}"), string(name: 'Product_name', value: "${Product_name}"), string(name: 'projectFolder', value: "${projectFolder}"), string(name: 'serviceName', value: "${serviceName}")]
+            }
+        }
+        
+        stage('Not Master or Dev') {
+            // Проверяем, в какую ветку были внесены изменения, если ветка не master и не dev, то выводим сообщение и переменные с веткой и названием проекта
+            when {
+                anyOf {
+                    expression{"${gitlabBranch}" != 'master' && "${gitlabBranch}" != 'main' && "${gitlabBranch}" != 'prod' && "${gitlabBranch}" != 'develop' && "${gitlabBranch}" != 'dev'}
+                }
+            }
+            steps {
+                echo "It is not MASTER or DEV branch. Skipping Job"
+                echo "gitlabBranch = ${gitlabBranch}"
+                echo "gitlabSourceRepoHttpUrl = ${gitlabSourceRepoHttpUrl}"
+            }
+        }
+    }
+    
+    post {
+        // Если пайплайн зафейлился, отправляем сообщение в почту
+        failure {
+*            mail bcc: '', body: " Pipeline '${JOB_NAME}'_'${BUILD_NUMBER}' of service '${LinkToProjectJob}' - FAILED. Link: '${JOB_URL}'", cc: '', from: '', replyTo: '', subject: "FAILED", to: 'user@mail.com'
+        }
+        // Чистим рабочие каталоги после завершения работы пайплайна
+        always {
+            cleanWs()
+            dir("/var/lib/jenkins/workspace/${JOB_NAME}") {
+                deleteDir()
+            }
+            dir("/var/lib/jenkins/workspace/${JOB_NAME}@tmp") {
+                deleteDir()
+            }
+            dir("/var/lib/jenkins/workspace/${JOB_NAME}@2") {
+                deleteDir()
+            }
+            dir("/var/lib/jenkins/workspace/${JOB_NAME}@2@tmp") {
+                deleteDir()
+            }
+        }
+    }
+}

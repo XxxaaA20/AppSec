@@ -1,0 +1,115 @@
+	**************************************
+	*** Структура пайплайнов в Jenkins ***
+	**************************************
+
+0_START_PIPELINES
+  Bitbucket_start
+  Gitlab_start
+
+0_TEMPLATE_SCANNERS
+  1_Gitleaks
+  2_Semgrep
+  3_Cdxgen
+
+
+В каталоге Pipelines лежат 5 пайплайнов - два стартовых для гитлаба и битбакета и три шаблона под каждый сканер
+
+В Jenkins во вкладке Dashboard создаем каталоги 0_START_PIPELINES и 0_TEMPLATE_SCANNERS и в них создаем соответствующие пайплайны (New item -> Pipeline)
+
+
+	*****************************
+	*** НАСТРАИВАЕМ ПАЙПЛАЙНЫ ***
+	*****************************
+
+=====================================
+
+*** Bitbucket_start ***
+- В настройке пайплайна можно поставить галку Discard old builds -> Strategy: Log Rotation -> Max # of builds to keep XX - дженкинс будет хранить заданное количество последних билдов. Старые билды, вышедшие за рамки заданного значения, будет удалены.
+
+- Ставим галку Do not allow concurrent builds, чтобы пайплайны запускались строго по очереди - так они не будут занимать все доступные агенты и процесс очистки рабочей директории будет проходить корректно
+
+- Ранее мы установили плагин Generic Webhook Trigger, который позволит нам перехватывать запросы из Bitbucket и их обрабатывать. Ставим галку на Generic Webhook Trigger и в открывшемся разделе Post content parameters добавляем следующие переменные:
+
+Variable: LinkToDownloadRepo0
+Expression: $..repository.links.clone[0].href
+JSONPath
+
+Variable: LinkForDojoCodeManagement
+Expression: $.repository.links.self[0].href
+JSONPath
+
+Variable: Product_name
+Expression: $.repository.name
+JSONPath
+
+Variable: Product_type
+Expression: $.repository.project.name
+JSONPath
+
+Variable: bitbucketBranch
+Expression: $.changes[0].ref.displayId
+JSONPath
+
+Variable: commitHash
+Expression: $.commits[0].id
+JSONPath
+
+Variable: RepoLinkName0
+Expression: $..repository.links.clone[0].name
+JSONPath
+
+Variable: RepoLinkName1
+Expression: $..repository.links.clone[1].name
+JSONPath
+
+Variable: LinkToDownloadRepo1
+Expression: $..repository.links.clone[1].href
+JSONPath
+
+В разделе Header parameters в Request header указываем: X-Event-Key
+
+Далее задаем рандомный токен, чтобы пайплайн можно было запустить только поссылке с этим токеном
+
+На этом конфигурация пайплайна закончена и осталось только вставить сам код в раздел Pipeline -> Definition: Pipeline script -> Script, вписать свою почту под строками со звездочкой * (и удалить *)
+
+И нажать Save
+
+=====================================
+
+*** Gitlab_start ***
+
+- В настройке пайплайна можно поставить галку Discard old builds -> Strategy: Log Rotation -> Max # of builds to keep XX - дженкинс будет хранить заданное количество последних билдов. Старые билды, вышедшие за рамки заданного значения, будет удалены.
+
+- Ставим галку Do not allow concurrent builds, чтобы пайплайны запускались строго по очереди - так они не будут занимать все доступные агенты и процесс очистки рабочей директории будет проходить корректно
+
+- Ранее мы установили плагин GitLab, который позволяет работать с гитлабом. В поле GitLab Connection указываем созданное нами в Manage Jenkins -> System -> Gitlab соединение
+
+- В разделе Build Triggers ставим галку на Build when a change is pushed to Gitlab. GitLab webhook URL: https://your-jenkins-url/project/0_START_PIPELINES/Gitlab_start. Сохраняем полученную ссылку, ее мы будет указывать в настройках гитлаба
+У нас триггер срабатывает на пуш в репозиторий, настройки такие:
+Enabled GitLab triggers -> Push Events
+Rebuild open Merge Requests -> Never
+Галка Approved Merge Requests (EE-only)
+Галка Comments
+Comment (regex) for triggering a build -> Jenkins please retry a build
+
+Advanced - стоят все галки, которые стояли по дефолту, мы только самостоятельно с помощью кнопки Generate создаем токен
+
+На этом конфигурация пайплайна закончена и осталось только вставить сам код в раздел Pipeline -> Definition: Pipeline script -> Script, вписать свою почту под строками со звездочкой * (и удалить *)
+
+И нажать Save
+
+=====================================
+
+*** 1_Gitleaks ***
+*** 2_Semgrep ***
+*** 3_Cdxgen ***
+
+- В настройке пайплайнов можно поставить галку Discard old builds -> Strategy: Log Rotation -> Max # of builds to keep XX - дженкинс будет хранить заданное количество последних билдов. Старые билды, вышедшие за рамки заданного значения, будет удалены.
+
+- Ставим галку Do not allow concurrent builds, чтобы пайплайны запускались строго по очереди - так они не будут занимать все доступные агенты и процесс очистки рабочей директории будет проходить корректно
+
+На этом конфигурация пайплайна закончена и осталось только вставить сам код в раздел Pipeline -> Definition: Pipeline script -> Script и указать свои значения на шаге Set variables
+
+И нажать Save
+
+=====================================

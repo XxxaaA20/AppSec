@@ -1,0 +1,308 @@
+*** Для корректной работы всех используемых настроек и компонентов нужно установить в Jenkins некоторые плагины, которые дадут нужный функционал и облегчат дальнейшую работу ***
+*** Плагины можно будет установить при первом запуске Jenkins либо потом в менюшке Manage Jenkins -> Plugins ***
+
+	******************************
+	*** Установить эти плагины ***
+	******************************
+
+- Build Timeout
+This plugin allows you to automatically terminate a build if it's taking too long.
+
+- Docker Pipeline
+Build and use Docker containers from pipelines.
+
+- Docker plugin
+This plugin integrates Jenkins with Docker
+
+- Generic Webhook Trigger
+Can receive any HTTP request, extract any values from JSON or XML and trigger a job with those values available as variables. Works with GitHub, GitLab, Bitbucket, Jira and many more.
+
+- Git Parameter
+Adds ability to choose branches, tags or revisions from git repositories configured in project.
+
+- GitLab
+This plugin allows GitLab to trigger Jenkins builds and display their results in the GitLab UI.
+
+- JavaMail API
+This plugin provides the JavaMail API for other plugins.
+
+- Job DSL
+This plugin allows Jobs and Views to be defined via DSLs
+
+- Locale
+This plugin lets you control the language of Jenkins.
+
+- OWASP Dependency-Track Plugin
+This plug-in publishes Software Bill-of-Materials (SBOM) to Dependency-Track for continuous analysis. This plugin supports CycloneDX and SPDX SBOM formats.
+Dependency-Track is an intelligent Software Supply Chain Component Analysis platform that allows organizations to identify and reduce risk from the use of third-party and open source components.
+
+- Parameterized Trigger plugin
+This plugin lets you trigger new builds when your build has completed, with various ways of specifying parameters for the new build.
+
+- Pipeline
+A suite of plugins that lets you orchestrate automation, simple or complex. See Pipeline as Code with Jenkins for more details.
+
+- Pipeline: Stage View Plugin
+Pipeline Stage View Plugin.
+
+- SSH Agent
+This plugin allows you to provide SSH credentials to builds via a ssh-agent in Jenkins.
+
+- SSH server
+Adds SSH server functionality to Jenkins, exposing CLI commands through it.
+
+- Timestamper
+Adds timestamps to the Console Output
+
+- Workspace Cleanup Plugin
+This plugin deletes the project workspace when invoked.
+
+
+	******************************************************************************
+	*** Остальные вроде как подтянутся сами как зависимые от уже установленных ***
+	******************************************************************************
+
+- Apache HttpComponents Client 4.x API Plugin
+Bundles Apache HttpComponents Client 4.x and allows it to be used by Jenkins plugins.
+
+- Apache HttpComponents Client 5.x API
+Bundles Apache HttpComponents Client and allows it to be used by Jenkins plugins.
+
+- Authentication Tokens API Plugin
+This plugin provides an API for converting credentials into authentication tokens in Jenkins.
+
+- Bootstrap 5 API
+Provides Bootstrap 5 for Jenkins Plugins. Bootstrap is (according to their self-perception) the world’s most popular front-end component library to build responsive, mobile-first projects on the web.
+
+- bouncycastle API
+This plugin provides a stable API to Bouncy Castle related tasks.
+
+- Branch API
+This plugin provides an API for multiple branch based projects.
+
+- Caffeine API Plugin
+Caffeine api plugin for use by other Jenkins plugins.
+
+- Checks API
+This plugin defines an API for Jenkins to publish checks to SCM platforms.
+
+- Cloud Statistics
+Report Jenkins dynamic provisioning activities and statistics
+
+- commons-lang3 v3.x Jenkins API Plugin
+Jenkins Api Plugin that Bundles Apache Commons Lang v3.x.
+Usage will slim downstream plugin and not require dependency jar being provided by core Jenkins.
+Provides org.apache.commons:commons-lang3:3.13.0.
+
+- commons-text API
+Jenkins Api Plugin that Bundles Apache Commons Text v1.x.
+Usage will slim downstream plugin.
+Provides org.apache.commons:commons-text:1.11.0.
+
+- Credentials
+This plugin allows you to store credentials in Jenkins.
+
+- Credentials Binding
+Allows credentials to be bound to environment variables for use from miscellaneous build steps.
+
+- Display URL API
+Provides the DisplayURLProvider extension point to provide alternate URLs for use in notifications.
+
+- Docker API Plugin
+This plugin provides docker-java API for other plugins.
+
+- Docker Commons Plugin
+Provides the common shared functionality for various Docker-related plugins.
+
+- Durable Task
+Library offering an extension point for processes which can run outside of Jenkins yet be monitored.
+
+- ECharts API
+Provides ECharts for Jenkins Plugins, a JavaScript visualization tool to create intuitive, interactive, and highly-customizable charts.
+
+- Folders Plugin
+This plugin allows users to create "folders" to organize jobs. Users can define custom taxonomies (like by project type, organization type etc). Folders are nestable and you can define views within folders. Maintained by CloudBees, Inc.
+
+- Font Awesome API
+Provides Font Awesome 6 for Jenkins Plugins. Font Awesome has vector icons and social logos. It is the web's most popular icon set and toolkit with more than 1700 free icons.
+
+- Git client
+Utility plugin for Git support in Jenkins
+
+- Git plugin
+This plugin integrates Git with Jenkins.
+
+- Git Push Plugin
+This plugin allows to perform a git push as a post build step via Git Plugin
+
+- GitHub
+This plugin integrates GitHub to Jenkins.
+
+- GitHub API Plugin
+This plugin provides GitHub API for other plugins.
+
+- GitHub Branch Source
+Multibranch projects and organization folders from GitHub. Maintained by CloudBees, Inc.
+
+- Instance Identity
+Maintains an RSA key pair that can serve as a foundation of authentication when communicating with Jenkins
+
+- Ionicons API
+Provides Ionicons for Jenkins Plugins, internally known as "symbols".
+Check out the design-library how to use ionicons in your plugin.
+
+- Jackson 2 API
+This plugin exposes the Jackson 2 JSON APIs to other Jenkins plugins.
+
+- Jakarta Activation API
+This plugin provides the Jakarta Activation API for other plugins.
+
+- Jakarta Mail API
+This plugin provides the Jakarta Mail API for other plugins.
+
+- Java JSON Web Token (JJWT)
+Bundles the Java JSON Web Token (JJWT) library.
+
+- JavaBeans Activation Framework (JAF) API
+This plugin provides the JavaBeans Activation Framework (JAF) API for other plugins.
+
+- JAXB plugin
+JAXB packaging for more transparent Java 9+ compatibility
+
+- Jersey 2 API
+This plugin provides the JAX-RS 2.1 and Jersey 2 APIs for other plugins.
+
+- JQuery3 API
+Provides jQuery 3 for Jenkins Plugins. jQuery is a fast, small, and feature-rich JavaScript library.
+
+- JSch dependency
+Jenkins plugin that brings the JSch library as a plugin dependency, and provides an SSHAuthenticatorFactory for using JSch with the ssh-credentials plugin.
+
+- JUnit
+Allows JUnit-format test results to be published.
+
+- Mailer
+This plugin allows you to configure email notifications for build results.
+
+- Matrix Project Plugin
+Multi-configuration (matrix) project type.
+
+- Mercurial plugin
+This plugin integrates Mercurial SCM with Jenkins. It includes repository browsing support for hg serve/hgweb, as well as hosted services like Google Code. Features include guaranteed clean builds, named branch support, module lists, Mercurial tool installation, and automatic caching.
+
+- Mina SSHD API :: Common
+Provides the Common module of Apache Mina SSHD to plugins.
+
+- Mina SSHD API :: Core
+Provides the Core module of Apache Mina SSHD to plugins.
+
+- OkHttp
+This plugin provides OkHttp for other plugins.
+
+- OWASP Markup Formatter
+Uses the OWASP Java HTML Sanitizer to allow safe-seeming HTML markup to be entered in project descriptions and the like.
+
+- Pipeline Graph Analysis
+Provides a REST API to access pipeline and pipeline run data.
+
+- Pipeline: API
+Plugin that defines Pipeline API.
+
+- Pipeline: Basic Steps
+Commonly used steps for Pipelines.
+
+- Pipeline: Build Step
+Adds the Pipeline step build to trigger builds of other jobs.
+
+- Pipeline: Declarative
+An opinionated, declarative Pipeline.
+
+- Pipeline: Declarative Extension Points API
+APIs for extension points used in Declarative Pipelines.
+
+- Pipeline: GitHub Groovy Libraries
+Allows Pipeline Groovy libraries to be loaded on the fly from GitHub.
+
+- Pipeline: Groovy
+Pipeline execution engine based on continuation passing style transformation of Groovy scripts.
+
+- Pipeline: Groovy Libraries
+Libraries for Pipeline scripts allowing logic to be shared across jobs.
+
+- Pipeline: Input Step
+Adds the Pipeline step input to wait for human input or approval.
+
+- Pipeline: Job
+Defines a new job type for pipelines and provides their generic user interface.
+
+- Pipeline: Milestone Step
+Plugin that provides the milestone step
+
+- Pipeline: Model API
+Model API for Declarative Pipeline.
+
+- Pipeline: Multibranch
+Enhances Pipeline plugin to handle branches better by automatically grouping builds from different branches.
+
+- Pipeline: Nodes and Processes
+Pipeline steps locking agents and workspaces, and running external processes that may survive a Jenkins restart or agent reconnection.
+
+- Pipeline: REST API Plugin
+Provides a REST API to access pipeline and pipeline run data.
+
+- Pipeline: SCM Step
+Adds a Pipeline step to check out or update working sources from various SCMs (
+
+- Pipeline: Stage Step
+Adds the Pipeline step stage to delineate portions of a build.
+
+- Pipeline: Stage Tags Metadata
+Library plugin for Pipeline stage tag metadata.
+
+- Pipeline: Step API
+API for asynchronous build step primitive.
+
+- Pipeline: Supporting APIs
+Common utility implementations to build Pipeline Plugin
+
+- Plain Credentials
+Allows use of plain strings and files as credentials.
+
+- Plugin Utilities API
+Provides utility classes that can be used to accelerate plugin development.
+
+- Resource Disposer
+Dispose resources asynchronously. Utility plugin for resources that require more retries or take a long time to delete
+
+- SCM API
+This plugin provides a new enhanced API for interacting with SCM systems.
+
+- Script Security
+Allows Jenkins administrators to control what in-process scripts can be run by less-privileged users.
+
+- SnakeYAML API Plugin
+This plugin provides SnakeYAML for other plugins.
+
+- SSH Build Agents
+Allows to launch agents over SSH, using a Java implementation of the SSH protocol.
+
+- SSH Credentials
+Allows storage of SSH credentials in Jenkins
+
+- Structs
+Library plugin for DSL plugins that need names for Jenkins objects.
+
+- Token Macro
+This plug-in adds reusable macro expansion capability for other plug-ins to use.
+
+- Trilead API
+Trilead API Plugin provides the Trilead library to any dependent plugins in an easily update-able manner.
+
+- Variant
+This user-invisible library plugin allows other multi-modal plugins to behave differently depending on where they run.
+
+
+
+
+
+

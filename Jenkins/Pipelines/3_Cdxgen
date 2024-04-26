@@ -1,0 +1,243 @@
+pipeline {
+    agent any
+    options {
+        timeout(time: 3, unit: 'HOURS') // Задаем ограничение по времени работы пайплайна, чтобы повисшие или сильно долгие сканы не тормозили очередь
+    }
+    parameters {
+        string(name: 'SourceRepoHttpUrl', description: 'Link to repo with .git in the end') // Ссылка на репозиторий с .git в конце для скачивания
+        string(name: 'SourceRepoName', description: 'Source Repo Name') // Название всего раздела в GitLab с разными проектами
+        string(name: 'Branch', description: 'Branch of project') // Ветка
+        string(name: 'MergeRequestLastCommit', description: 'HashCommit of project') // Хэш коммита
+        string(name: 'SourceRepoHomepage', description: 'Link to repo without .git in the end') // Ссылка на репозиторий как из строки браузера
+        string(name: 'Product_type', description: 'DefectDOJO Product type')
+        string(name: 'Product_name', description: 'DefectDOJO Product name')
+        string(name: 'projectFolder', description: 'Folder name to start scan')
+        string(name: 'serviceName', description: 'Boolean variable to detect GitLab or BitBucket')
+    }
+    stages {
+        stage('Set variables') {
+            steps {
+                script {
+                    defectDOJOURL = "https://your-defectdojo.com/api/v2/reimport-scan/"
+                    registryURL = "https://your-registry.com"
+                    imageName = "your-registry.com/cdxgen:v"
+                    email = "user@mail.com"
+                }
+            }
+        }
+
+        stage('Download Gitlab Repo') {
+            when {
+                expression {
+                    return "${serviceName}" == 'gitlab'
+                }
+            }
+            steps {
+                git branch: '${Branch}', credentialsId: 'GitlabAPIToken_Hiden', url: "${SourceRepoHttpUrl}" // GitLab
+                script {
+                    FIRSTWORKSPACE = "${WORKSPACE}"
+                }
+            }
+        }
+        
+        stage('Download BitBucket Repo') {
+            when {
+                expression {
+                    return "${serviceName}" == 'bitbucket'
+                }
+            }
+            steps {
+                script {
+                    withCredentials([string(credentialsId: 'BitBucketAPIToken', variable: 'TOKI')]) {
+                        sh "git clone --branch '${Branch}' -c http.extraHeader='${TOKI}' '${SourceRepoHttpUrl}'"
+                        script {
+                           FIRSTWORKSPACE = "${WORKSPACE}"
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('cdxgen GitLab Scan') {
+            agent {
+                docker {
+                    image "${imageName}"
+                    args "-u root:root -v '${FIRSTWORKSPACE}':/home:rw -e JAVA_HOME='/opt/java/17.0.8-graalce'" // Запускается с 17 джавой и не работает с грейдлом ниже 5 версии
+                    // args "-u root:root -v '${FIRSTWORKSPACE}':/home:rw -e JAVA_HOME='/opt/java/20.0.2-graalce'" // Запускается с джавой 20 версии и не работает с грейдлом ниже 8 версии
+                    // args "-u root:root -v '${FIRSTWORKSPACE}':/home:rw -e JAVA_HOME='/opt/java/21.0.2-tem'" // Запускается с джавой 20 версии и не работает с грейдлом ниже 8 версии
+                    // registryCredentialsId 'docker-login'
+                    // registryUrl "${registryURL}"
+                }
+            }
+            when {
+                beforeAgent true
+                expression {
+                    return "${serviceName}" == 'gitlab'
+                }
+            }
+            steps {
+                // sh 'mv /opt/cdxgen/cacerts/CERT.pem /opt/cdxgen/cacerts/CERT.crt' // Добавляем сертификаты, если нужно
+                // sh 'keytool -import -trustcacerts -noprompt -alias rootca2019 -keystore /etc/pki/ca-trust/extracted/java/cacerts -file /opt/cdxgen/cacerts/CERT.crt -storepass changeit' // Добавляем сертификаты, если нужно
+                sh 'FETCH_LICENSE=true SCAN_DEBUG_MODE=true /opt/cdxgen/bin/cdxgen.js --spec-version 1.4 -r -o cdxgen.json /home'
+                sh 'chmod -R 777 .*' // Из-за непонятных проблем с доступом к файлам у сканера, приходится руками менять права
+                sh 'chmod -R 777 /home'
+                sh 'cp cdxgen.json /home'
+            }
+        }
+        
+        stage('cdxgen BitBucket Scan') {
+            agent {
+                docker {
+                    image "${imageName}"
+                    args "-u root:root -v '${FIRSTWORKSPACE}':/home:rw -e JAVA_HOME='/opt/java/17.0.8-graalce'" // Запускается с 17 джавой и не работает с грейдлом ниже 5 версии
+                    // args "-u root:root -v '${FIRSTWORKSPACE}':/home:rw -e JAVA_HOME='/opt/java/20.0.2-graalce'" // Запускается с джавой 20 версии и не работает с грейдлом ниже 8 версии
+                    // args "-u root:root -v '${FIRSTWORKSPACE}':/home:rw -e JAVA_HOME='/opt/java/21.0.2-tem'" // Запускается с джавой 20 версии и не работает с грейдлом ниже 8 версии
+                    // registryCredentialsId 'docker-login'
+                    // registryUrl "${registryURL}"
+                }
+            }
+            when {
+                beforeAgent true
+                expression {
+                    return "${serviceName}" == 'bitbucket'
+                }
+            }
+            steps {
+                // sh 'mv /opt/cdxgen/cacerts/CERT.pem /opt/cdxgen/cacerts/CERT.crt' // Добавляем сертификаты, если нужно
+                // sh 'keytool -import -trustcacerts -noprompt -alias rootca2019 -keystore /etc/pki/ca-trust/extracted/java/cacerts -file /opt/cdxgen/cacerts/CERT.crt -storepass changeit' // Добавляем сертификаты, если нужно
+                sh 'FETCH_LICENSE=true SCAN_DEBUG_MODE=true /opt/cdxgen/bin/cdxgen.js --spec-version 1.4 -r -o cdxgen.json /home/${projectFolder}'
+                sh 'chmod -R 777 .*'
+                sh 'chmod -R 777 /home'
+                sh 'cp cdxgen.json /home'
+            }
+        }
+        
+        stage('Trivy SBOM Scan') { // Тут триви запускается уже с хостовой машины, должен быть установлен на ней
+            steps {
+                sh 'trivy sbom --format json --output cdxgentrivy.json cdxgen.json'
+            }
+        }
+        
+        stage('Send Result to DepTrack Master') {
+            when {
+                anyOf {
+                    expression{"${Branch}" == 'master' || "${Branch}" == 'main' || "${Branch}" == 'prod' || "${Branch}" == 'develop'}
+                }
+            }
+            steps {
+                dependencyTrackPublisher artifact: 'cdxgen.json', projectName: '${Product_name}', projectVersion: 'master', autoCreateProjects: true, synchronous: false
+            }
+        }
+        
+        stage('Send trivy to DefectDOJO Master') {
+            when {
+                anyOf {
+                    expression{"${Branch}" == 'master' || "${Branch}" == 'main' || "${Branch}" == 'prod' || "${Branch}" == 'develop'}
+                }
+            }
+            steps {
+                withCredentials([string(credentialsId: 'defectdojo_token', variable: 'dojoToken'), string(credentialsId: 'defectdojo_csrf_token', variable: 'dojoCSRF')]) {
+                    sh """
+                    curl -X 'POST' '${defectDOJOURL}' \
+                    -H 'accept: application/json' \
+                    -H 'Authorization: $dojoToken' \
+                    -H 'Content-Type: multipart/form-data' \
+                    -H 'X-CSRFToken: $dojoCSRF' \
+                    -F 'product_type_name=${Product_type}' \
+                    -F 'active=true' \
+                    -F 'endpoint_to_add=' \
+                    -F 'verified=false' \
+                    -F 'close_old_findings=true' \
+                    -F 'test_title=' \
+                    -F 'engagement_name=Trivy scan' \
+                    -F 'build_id=' \
+                    -F 'deduplication_on_engagement=true' \
+                    -F 'push_to_jira=false' \
+                    -F 'minimum_severity=Info' \
+                    -F 'scan_date=' \
+                    -F 'environment=' \
+                    -F 'service=${SourceRepoName}' \
+                    -F 'commit_hash=${MergeRequestLastCommit}' \
+                    -F 'group_by=' \
+                    -F 'version=' \
+                    -F 'tags=string' \
+                    -F 'api_scan_configuration=' \
+                    -F 'product_name=${Product_name}' \
+                    -F 'file=@cdxgentrivy.json' \
+                    -F 'auto_create_context=true' \
+                    -F 'lead=' \
+                    -F 'source_code_management_uri=${SourceRepoHomepage}' \
+                    -F 'scan_type=Trivy Scan' \
+                    -F 'branch_tag=${Branch}' \
+                    -F 'engagement='
+                    """
+                }
+            }
+        }
+        stage('Send trivy to DefectDOJO Stage') {
+            when {
+                expression {
+                    return "${Branch}" == 'dev'
+                }
+            }
+            steps {
+                withCredentials([string(credentialsId: 'defectdojo_token', variable: 'dojoToken'), string(credentialsId: 'defectdojo_csrf_token', variable: 'dojoCSRF')]) {
+                    sh """
+                    curl -X 'POST' '${defectDOJOURL}' \
+                    -H 'accept: application/json' \
+                    -H 'Authorization: $dojoToken' \
+                    -H 'Content-Type: multipart/form-data' \
+                    -H 'X-CSRFToken: $dojoCSRF' \
+                    -F 'product_type_name=${Product_type}' \
+                    -F 'active=true' \
+                    -F 'endpoint_to_add=' \
+                    -F 'verified=false' \
+                    -F 'close_old_findings=true' \
+                    -F 'test_title=' \
+                    -F 'engagement_name=Trivy scan Stage' \
+                    -F 'build_id=' \
+                    -F 'deduplication_on_engagement=true' \
+                    -F 'push_to_jira=false' \
+                    -F 'minimum_severity=Info' \
+                    -F 'scan_date=' \
+                    -F 'environment=' \
+                    -F 'service=${SourceRepoName}' \
+                    -F 'commit_hash=${MergeRequestLastCommit}' \
+                    -F 'group_by=' \
+                    -F 'version=' \
+                    -F 'tags=string' \
+                    -F 'api_scan_configuration=' \
+                    -F 'product_name=${Product_name}' \
+                    -F 'file=@cdxgentrivy.json' \
+                    -F 'auto_create_context=true' \
+                    -F 'lead=' \
+                    -F 'source_code_management_uri=${SourceRepoHomepage}' \
+                    -F 'scan_type=Trivy Scan' \
+                    -F 'branch_tag=${Branch}' \
+                    -F 'engagement='
+                    """
+                }
+            }
+        }
+        
+        stage('Pipeline Done') {
+            steps {
+                echo "SUCCESS"
+            }
+        }
+    }
+    post {
+        failure {
+            mail bcc: '', body: " Pipeline '${JOB_NAME}'_'${BUILD_NUMBER}' of service '${WORKSPACE}' - FAILED. Link: '${SourceRepoHttpUrl}'", cc: '', from: '', replyTo: '', subject: "FAILED CDXGEN", to: "${email}"
+        }
+        always {
+            cleanWs()
+            catchError(buildResult: 'SUCCESS', message: 'missing workspace', stageResult: 'FAILURE') {
+                script {
+                    sh '/opt/scripts/jenkins/clearJenkinsWorkspace.sh /var/lib/jenkins/workspace/${JOB_NAME}'
+                }
+                echo "WORKSPACE was deleted by script"
+            }
+        }
+    }
+}

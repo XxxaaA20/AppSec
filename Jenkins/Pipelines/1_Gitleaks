@@ -1,0 +1,240 @@
+pipeline {
+    agent any
+    parameters {
+        string(name: 'SourceRepoHttpUrl', description: 'Link to repo with .git in the end') // Ссылка на репозиторий с .git в конце для скачивания
+        string(name: 'SourceRepoName', description: 'Source Repo Name') // Название всего раздела в GitLab с разными проектами
+        string(name: 'Branch', description: 'Branch of project') // Ветка
+        string(name: 'MergeRequestLastCommit', description: 'HashCommit of project') // Хэш коммита
+        string(name: 'SourceRepoHomepage', description: 'Link to repo without .git in the end') // Ссылка на репозиторий как из строки браузера
+        string(name: 'Product_type', description: 'DefectDOJO Product type')
+        string(name: 'Product_name', description: 'DefectDOJO Product name')
+        string(name: 'projectFolder', description: 'Folder name to start scan')
+        string(name: 'serviceName', description: 'Boolean variable to detect GitLab or BitBucket')
+    }
+    stages {
+        stage('Set variables') {
+            steps {
+                script {
+                    defectDOJOURL = "https://your-defectdojo.com/api/v2/reimport-scan/"
+                    registryURL = "https://your-registry.com"
+                    imageName = "your-registry.com/gitleaks:v"
+                    email = "user@mail.com"
+                }
+            }
+        }
+
+        stage('Edit link') {
+            steps {
+                script {
+                    tmp_param3 = sh (script: '/opt/scripts/jenkins/sedLink3.sh ${JOB_NAME}', returnStdout: true) // Получаем путь до текущего каталога с пайплайнами
+                    CurrentJobDirectoryPath = tmp_param3
+                }
+            }
+        }
+        
+        stage('Download Gitlab Repo') {
+            when {
+                expression {
+                    return "${serviceName}" == 'gitlab'
+                }
+            }
+            steps {
+                git branch: '${Branch}', credentialsId: 'GitlabAPIToken_Hiden', url: "${SourceRepoHttpUrl}" // GitLab
+                script {
+                    FIRSTWORKSPACE = "${WORKSPACE}" // Записываем информацию о текущем воркспейсе, чтобы правильно прокинуть путь до него в контейнер
+                }
+            }
+        }
+        
+        stage('Download BitBucket Repo') {
+            when {
+                expression {
+                    return "${serviceName}" == 'bitbucket'
+                }
+            }
+            steps {
+                script {
+                    withCredentials([string(credentialsId: 'BitBucketAPIToken', variable: 'TOKI')]) {
+                        sh "git clone --branch '${Branch}' -c http.extraHeader='${TOKI}' '${SourceRepoHttpUrl}'"
+                        script {
+                           FIRSTWORKSPACE = "${WORKSPACE}" // Записываем информацию о текущем воркспейсе, чтобы правильно прокинуть путь до него в контейнер
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Gitleaks GitLab Scan') {
+            agent {
+                docker {
+                    image "${imageName}"
+                    args "-v /etc/passwd:/etc/passwd -v '${FIRSTWORKSPACE}':/home:rw"
+                    // Можно загрузить образ на хост руками, а можно прямо из пайплайна
+                    // registryCredentialsId 'docker-login'
+                    // registryUrl "${registryURL}"
+                }
+            }
+            when {
+                beforeAgent true
+                expression {
+                    return "${serviceName}" == 'gitlab'
+                }
+            }
+            steps {
+                // sh 'gitleaks detect --source="/home" --report-format="json" --report-path="gitleaks.json" --exit-code 0 --no-git' // Скан только локальных файлов без коммитов
+                sh 'gitleaks detect --source="/home" --report-format="json" --report-path="gitleaks.json" --exit-code 0 --redact --no-git'
+                sh 'cp gitleaks.json /home'
+            }
+        }
+        
+        stage('Gitleaks BitBucket Scan') {
+            agent {
+                docker {
+                    image "${imageName}"
+                    args "-v /etc/passwd:/etc/passwd -v '${FIRSTWORKSPACE}':/home:rw"
+                    // Можно загрузить образ на хост руками, а можно прямо из пайплайна
+                    // registryCredentialsId 'docker-login'
+                    // registryUrl "${registryURL}"
+                }
+            }
+            when {
+                beforeAgent true
+                expression {
+                    return "${serviceName}" == 'bitbucket'
+                }
+            }
+            steps {
+                // sh 'gitleaks detect --source="/home" --report-format="json" --report-path="gitleaks.json" --exit-code 0 --no-git' // Скан только локальных файлов без коммитов
+                sh 'gitleaks detect --source="/home/${projectFolder}" --report-format="json" --report-path="gitleaks.json" --exit-code 0 --redact --no-git'
+                sh 'cp gitleaks.json /home'
+            }
+        }
+        
+        stage('Send Result to DefectDOJO Master') {
+            when {
+                anyOf {
+                    expression{"${Branch}" == 'master' || "${Branch}" == 'main' || "${Branch}" == 'prod' || "${Branch}" == 'develop'}
+                }
+            }
+            steps {
+                sh '/opt/scripts/jenkins/semgrep.cutpathhome.sh ${serviceName} ${projectFolder} ${Branch} gitleaks.json' // Обрезаем /home/ в пути к сканируемым файлам, чтобы в додже корректно работал переход по ссылке
+                withCredentials([string(credentialsId: 'defectdojo_token', variable: 'dojoToken'), string(credentialsId: 'defectdojo_csrf_token', variable: 'dojoCSRF')]) {
+                    sh """
+                    curl -X 'POST' '${defectDOJOURL}' \
+                    -H 'accept: application/json' \
+                    -H 'Authorization: $dojoToken' \
+                    -H 'Content-Type: multipart/form-data' \
+                    -H 'X-CSRFToken: $dojoCSRF' \
+                    -F 'product_type_name=${Product_type}' \
+                    -F 'active=true' \
+                    -F 'endpoint_to_add=' \
+                    -F 'verified=false' \
+                    -F 'close_old_findings=true' \
+                    -F 'test_title=' \
+                    -F 'engagement_name=Gitleaks scan' \
+                    -F 'build_id=' \
+                    -F 'deduplication_on_engagement=true' \
+                    -F 'push_to_jira=false' \
+                    -F 'minimum_severity=Info' \
+                    -F 'scan_date=' \
+                    -F 'environment=' \
+                    -F 'service=${SourceRepoName}' \
+                    -F 'commit_hash=${MergeRequestLastCommit}' \
+                    -F 'group_by=file_path' \
+                    -F 'version=' \
+                    -F 'tags=string' \
+                    -F 'api_scan_configuration=' \
+                    -F 'product_name=${Product_name}' \
+                    -F 'file=@gitleaks.json;type=application/json' \
+                    -F 'auto_create_context=true' \
+                    -F 'lead=' \
+                    -F 'source_code_management_uri=${SourceRepoHomepage}' \
+                    -F 'scan_type=Gitleaks Scan' \
+                    -F 'branch_tag=${Branch}' \
+                    -F 'engagement='
+                    """
+                }
+            }
+        }
+        
+        stage('Send Result to DefectDOJO Stage') {
+            when {
+                expression {
+                    return "${Branch}" == 'dev'
+                }
+            }
+            steps {
+                sh '/opt/scripts/jenkins/semgrep.cutpathhome.sh ${serviceName} ${projectFolder} ${Branch} gitleaks.json'
+                withCredentials([string(credentialsId: 'defectdojo_token', variable: 'dojoToken'), string(credentialsId: 'defectdojo_csrf_token', variable: 'dojoCSRF')]) {
+                    sh """
+                    curl -X 'POST' '${defectDOJOURL}' \
+                    -H 'accept: application/json' \
+                    -H 'Authorization: $dojoToken' \
+                    -H 'Content-Type: multipart/form-data' \
+                    -H 'X-CSRFToken: $dojoCSRF' \
+                    -F 'product_type_name=${Product_type}' \
+                    -F 'active=true' \
+                    -F 'endpoint_to_add=' \
+                    -F 'verified=false' \
+                    -F 'close_old_findings=true' \
+                    -F 'test_title=' \
+                    -F 'engagement_name=Gitleaks scan Stage' \
+                    -F 'build_id=' \
+                    -F 'deduplication_on_engagement=true' \
+                    -F 'push_to_jira=false' \
+                    -F 'minimum_severity=Info' \
+                    -F 'scan_date=' \
+                    -F 'environment=' \
+                    -F 'service=${SourceRepoName}' \
+                    -F 'commit_hash=${MergeRequestLastCommit}' \
+                    -F 'group_by=file_path' \
+                    -F 'version=' \
+                    -F 'tags=string' \
+                    -F 'api_scan_configuration=' \
+                    -F 'product_name=${Product_name}' \
+                    -F 'file=@gitleaks.json;type=application/json' \
+                    -F 'auto_create_context=true' \
+                    -F 'lead=' \
+                    -F 'source_code_management_uri=${SourceRepoHomepage}' \
+                    -F 'scan_type=Gitleaks Scan' \
+                    -F 'branch_tag=${Branch}' \
+                    -F 'engagement='
+                    """
+                }
+            }
+        }
+        
+        stage('Pipeline Done') {
+            steps {
+                echo "SUCCESS"
+                script {
+                    SourceRepoHttpUrl = "${SourceRepoHttpUrl}"
+                    SourceRepoName = "${SourceRepoName}"
+                    Branch = "${Branch}"
+                    MergeRequestLastCommit = "${MergeRequestLastCommit}"
+                    SourceRepoHomepage = "${SourceRepoHomepage}"
+                    Product_type = "${Product_type}"
+                    Product_name = "${Product_name}"
+                }
+            }
+        }
+    }
+    
+    post {
+        success {
+            build job: "${CurrentJobDirectoryPath}/2_Semgrep", wait: false, parameters: [string(name: 'SourceRepoHttpUrl', value: "${SourceRepoHttpUrl}"), string(name: 'SourceRepoName', value: "${SourceRepoName}"), string(name: 'Branch', value: "${Branch}"), string(name: 'MergeRequestLastCommit', value: "${MergeRequestLastCommit}"), string(name: 'SourceRepoHomepage', value: "${SourceRepoHomepage}"), string(name: 'Product_type', value: "${Product_type}"), string(name: 'Product_name', value: "${Product_name}"), string(name: 'projectFolder', value: "${projectFolder}"), string(name: 'serviceName', value: "${serviceName}")]
+        }
+        failure {
+*            mail bcc: '', body: " Pipeline '${JOB_NAME}'_'${BUILD_NUMBER}' of service '${WORKSPACE}' - FAILED. Link: '${JOB_URL}'", cc: '', from: '', replyTo: '', subject: "FAILED GITLEAKS", to: "${email}"
+        }
+        always {
+            cleanWs()
+            catchError(buildResult: 'SUCCESS', message: 'missing workspace /var/lib/jenkins/workspace/${JOB_NAME}', stageResult: 'FAILURE') {
+                script {
+                    sh '/opt/scripts/jenkins/clearJenkinsWorkspace.sh /var/lib/jenkins/workspace/${JOB_NAME}'
+                }
+                echo "WORKSPACE was deleted by script"
+            }
+        }
+    }
+}
