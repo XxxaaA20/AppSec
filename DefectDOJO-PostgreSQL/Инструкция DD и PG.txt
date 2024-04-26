@@ -1,0 +1,76 @@
+
+
+*** LINKS ***
+Некоторое количество полезных ссылок:
+- https://documentation.defectdojo.com - дока DefectDOJO
+- https://github.com/DefectDojo/django-DefectDojo - github DefectDOJO
+- https://hub.docker.com/r/defectdojo/defectdojo-django - docker hub DefectDOJO django
+- https://hub.docker.com/r/defectdojo/defectdojo-nginx - docker hub DefectDOJO nginx
+
+
+*** VERSION ***
+Используемая версия DefectDOJO - 2.29.3
+Используемая версия PostgreSQL - 15.2
+
+
+*** DOCKERFILE ***
+Dockerfile используется для сборки собственного образа, основанного на официальном, но с докинутыми внутрь сертификатами и отредаченным файлом с некоторыми настройками DefectDOJO. Если нет необходимости всё это делать, можно брать официальные образы с докерхаба и не париться.
+
+
+*** POSTGRESQL ***
+В файле postgresql_docker_compose.yml прописываем свои данные и запускаем базу командой
+
+docker compose -f postgresql_docker_compose.yml up -d
+
+Заходим в нее любым удобным способом, создаем базу defectdojo и пользователя defectdojo, делаем пользователя владельцем базы (даем все права). На этом действия с базой закончены.
+
+
+*** DEFECTDOJO ***
+Для корректного запуска DefectDOJO должна быть развернута БД postgresql. В ней должна быть база defectdojo, пользователь defectdojo, который является владельцем этой базы со всеми права. Все реквизиты для подключения defectdojo к базе прописываются в файлике defectdojo_docker_compose.yml.
+
+В defectdojo_docker_compose.yml нужно вписать некоторые свои данные туда, где есть такой набор символов <------.
+
+Запустить командой:
+
+docker compose -f defectdojo_docker_compose.yml up -d
+
+
+*** НЮАНСЫ ***
+
+1. Чтобы сменить пароль администратора или пользователя, который лежит в базе в виде хэша (не расшифровать), нужно зайти в контейнер uwsgi:
+
+kubectl -n <namespace> exec -it <pod-name> -c uwsgi -- /bin/bash
+docker exec -it uwsgi-DD /bin/bash
+
+и ввести команду
+
+python manage.py changepassword <username>
+
+2. Если при подключении к postgresql используется pgbouncer, нужно добавлять в файл /app/dojo/settings/settings.dist.py в раздел DATABASE параметр DISABLE_SERVER_SIDE_CURSORS со значением True. Пример:
+
+    # ------------------------------------------------------------------------------
+    # DATABASE
+    # ------------------------------------------------------------------------------
+
+    # Parse database connection url strings like psql://user:pass@127.0.0.1:8458/db
+    if os.getenv('DD_DATABASE_URL') is not None:
+        DATABASES = {
+            'default': env.db('DD_DATABASE_URL')
+        }
+    else:
+        DATABASES = {
+            'default': {
+                'ENGINE': env('DD_DATABASE_ENGINE'),
+                'DISABLE_SERVER_SIDE_CURSORS': True,
+                'NAME': env('DD_DATABASE_NAME'),
+                'TEST': {
+                    'NAME': env('DD_TEST_DATABASE_NAME'),
+                },
+                'USER': env('DD_DATABASE_USER'),
+                'PASSWORD': env('DD_DATABASE_PASSWORD'),
+                'HOST': env('DD_DATABASE_HOST'),
+                'PORT': env('DD_DATABASE_PORT'),
+            }
+        }
+
+3. При удалении тестов, энгейджментов, продуктов доджа по дефолту начинает формировать список всех объектов, которые будут удалены - это занимает много времени и по сути нафиг не нужно. Это поведение можно отключить также в /app/dojo/settings/settings.dist.py заменив True на False для параметра DD_DELETE_PREVIEW или прописать его в docker-compose.yml файле (в моем файле уже это указано в разделе # UWSGI_UNSORTED)

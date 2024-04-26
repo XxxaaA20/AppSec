@@ -1,0 +1,190 @@
+version: '3.8'
+services:
+
+# NGINX
+  nginx:
+    image: "defectdojo/defectdojo-nginx:2.29.3"
+    container_name: "dd-nginx"
+    networks:
+      - defectdojo
+    depends_on:
+      - uwsgi
+    environment:
+      DD_NGINX_UWSGI_HOST: "<defectdojo-host-IP>" # <------ IP адрес хоста, на котором развертывается DefectDOJO
+      DD_NGINX_UWSGI_PORT: "8081"
+      DD_UWSGI_PASS: "unix:///run/defectdojo/uwsgi.sock"
+    volumes:
+      - sock:/run/defectdojo
+    ports:
+      - "8080:8080"
+
+# UWSGI
+  uwsgi:
+    image: "defectdojo/defectdojo-django:2.29.3"
+    container_name: "dd-uwsgi"
+    networks:
+      - postgres
+      - defectdojo
+    entrypoint: ['/wait-for-it.sh', 'postgres:5432', '-t', '30', '--', '/entrypoint-uwsgi.sh']
+    environment:
+  # DATRABASE
+      DD_DATABASE_ENGINE: "django.db.backends.postgresql"
+      DD_DATABASE_HOST: "postgres"
+      DD_DATABASE_PORT: "5432"
+      DD_DATABASE_NAME: "defectdojo"
+      DD_DATABASE_USER: "defectdojo"
+      DD_DATABASE_PASSWORD: "password" # <------ Пароль от пользователя defectdojo из БД
+
+  # CELERY_BROKER
+      DD_CELERY_BROKER_SCHEME: "amqp"
+      DD_CELERY_BROKER_HOST: "rabbitmq"
+      DD_CELERY_BROKER_PORT: "5672"
+      DD_CELERY_BROKER_PATH: "//"
+      DD_CELERY_BROKER_USER: "user"
+      DD_CELERY_BROKER_PASSWORD: "rabbitmq"
+
+  # UWSGI
+      DD_UWSGI_ENDPOINT: "/run/defectdojo/uwsgi.sock"
+      DD_UWSGI_HOST: "localhost"
+      DD_UWSGI_PASS: "unix:///run/defectdojo/uwsgi.sock"
+      DD_UWSGI_NUM_OF_PROCESSES: "2"
+      DD_UWSGI_NUM_OF_THREADS: "2"
+
+  # UWSGI_UNSORTED
+      DD_SCAN_FILE_MAX_SIZE: "1500"
+      DD_DEBUG: 'False'
+      DD_ALLOWED_HOSTS: "localhost,uwsgi,nginx,<host-IP>" # <------ Прописываем тут еще IP хоста с DefectDOJO
+      DD_DELETE_PREVIEW: 'False'
+
+  # KEYS
+      DD_CREDENTIAL_AES_256_KEY: "&52aa*gYdewc*0DJ+2*bAbsUZfR4*nEq" # <------ Заменяем на какое-нибудь свое значение или корректируем текущее
+      DD_SECRET_KEY: "hiNCp@E558z!n@KUDy*B!VWQt+WzsY*iw" # <------ Заменяем на какое-нибудь свое значение или корректируем текущее
+
+    volumes:
+      - sock:/run/defectdojo
+
+# CELERY_BEAT
+  celerybeat:
+    image: "defectdojo/defectdojo-django:2.29.3"
+    container_name: "dd-cbeat"
+    networks:
+      - postgres
+      - defectdojo
+    user: defectdojo
+    depends_on:
+      - rabbitmq
+    entrypoint: ['/wait-for-it.sh', 'postgres:5432', '-t', '30', '--', '/entrypoint-celery-beat.sh']
+    environment:
+  # DATABASE
+      DD_DATABASE_ENGINE: "django.db.backends.postgresql"
+      DD_DATABASE_HOST: "postgres"
+      DD_DATABASE_PORT: "5432"
+      DD_DATABASE_NAME: "defectdojo"
+      DD_DATABASE_USER: "defectdojo"
+      DD_DATABASE_PASSWORD: "password" # <------ Пароль от пользователя defectdojo из БД
+
+  # CELERY_BROKER
+      DD_CELERY_BROKER_SCHEME: "amqp"
+      DD_CELERY_BROKER_HOST: "rabbitmq"
+      DD_CELERY_BROKER_PORT: "5672"
+      DD_CELERY_BROKER_PATH: "//"
+      DD_CELERY_BROKER_USER: "user"
+      DD_CELERY_BROKER_PASSWORD: "rabbitmq"
+
+  # KEYS
+      DD_CREDENTIAL_AES_256_KEY: "&52aa*gYdewc*0DJ+2*bAbsUZfR4*nEq" # <------ Заменяем на какое-нибудь свое значение или корректируем текущее
+      DD_SECRET_KEY: "hiNCp@E558z!n@KUDy*B!VWQt+WzsY*iw" # <------ Заменяем на какое-нибудь свое значение или корректируем текущее
+
+    volumes:
+      - "/opt/defectdojo/cbeat:/var/run/defectdojo:rw" # drwxrwxrwx root root - !!! нужно создать каталог cbeat и прокинуть его в контейнер. При остановке контейнеров и запуске из-за того, что в каталоге остаются данные, сервис не стартует
+
+# CELERY_WORKER
+  celeryworker:
+    image: "defectdojo/defectdojo-django:2.29.3"
+    container_name: "dd-cworker"
+    networks:
+      - postgres
+      - defectdojo
+    user: defectdojo
+    depends_on:
+      - rabbitmq
+    entrypoint: ['/wait-for-it.sh', 'postgres:5432', '-t', '30', '--', '/entrypoint-celery-worker.sh']
+    environment:
+  # DATABASE
+      DD_DATABASE_ENGINE: "django.db.backends.postgresql"
+      DD_DATABASE_HOST: "postgres"
+      DD_DATABASE_PORT: "5432"
+      DD_DATABASE_NAME: "defectdojo"
+      DD_DATABASE_USER: "defectdojo"
+      DD_DATABASE_PASSWORD: "password" # <------ Пароль от пользователя defectdojo из БД
+
+  # CELERY_BROKER
+      DD_CELERY_BROKER_SCHEME: "amqp"
+      DD_CELERY_BROKER_HOST: "rabbitmq"
+      DD_CELERY_BROKER_PORT: "5672"
+      DD_CELERY_BROKER_PATH: "//"
+      DD_CELERY_BROKER_USER: "user"
+      DD_CELERY_BROKER_PASSWORD: "rabbitmq"
+
+  # CELERY_WORKER
+      DD_CELERY_LOG_LEVEL: INFO
+      DD_CELERY_WORKER_AUTOSCALE_MIN: "2"
+      DD_CELERY_WORKER_AUTOSCALE_MAX: "8"
+      DD_CELERY_WORKER_CONCURRENCY: "8"
+      DD_CELERY_WORKER_PREFETCH_MULTIPLIER: "128"
+
+  # KEYS
+      DD_CREDENTIAL_AES_256_KEY: "&52aa*gYdewc*0DJ+2*bAbsUZfR4*nEq" # <------ Заменяем на какое-нибудь свое значение или корректируем текущее
+      DD_SECRET_KEY: "hiNCp@E558z!n@KUDy*B!VWQt+WzsY*iw" # <------ Заменяем на какое-нибудь свое значение или корректируем текущее
+
+# INITIALIZER
+  initializer:
+    image: "defectdojo/defectdojo-django:2.29.3"
+    user: defectdojo
+    networks:
+      - postgres
+      - defectdojo
+    entrypoint: ['/wait-for-it.sh', 'postgres:5432', '--', '/entrypoint-initializer.sh']
+    environment:
+  # DATABASE
+      DD_DATABASE_ENGINE: "django.db.backends.postgresql"
+      DD_DATABASE_HOST: "postgres"
+      DD_DATABASE_PORT: "5432"
+      DD_DATABASE_NAME: "defectdojo"
+      DD_DATABASE_USER: "defectdojo"
+      DD_DATABASE_PASSWORD: "password" # <------ Пароль от пользователя defectdojo из БД
+
+  # UNSORTED
+      DD_ADMIN_USER: "admin" # <------
+      DD_ADMIN_MAIL: "admin@mail.com" # <------
+      DD_ADMIN_FIRST_NAME: "Admin" # <------
+      DD_ADMIN_LAST_NAME: "Adminov" # <------
+      DD_INITIALIZE: "true"
+
+  # KEYS
+      DD_CREDENTIAL_AES_256_KEY: "&52aa*gYdewc*0DJ+2*bAbsUZfR4*nEq" # <------ Заменяем на какое-нибудь свое значение или корректируем текущее
+      DD_SECRET_KEY: "hiNCp@E558z!n@KUDy*B!VWQt+WzsY*iw" # <------ Заменяем на какое-нибудь свое значение или корректируем текущее
+
+# RABBITMQ
+  rabbitmq:
+    image: "rabbitmq:v3.11.9-1" # <------
+    container_name: "dd-rabbitmq"
+    networks:
+      - defectdojo
+    environment:
+      RABBITMQ_DEFAULT_USER: "user"
+      RABBITMQ_DEFAULT_PASS: "password"
+
+    volumes:
+      - defectdojo_rabbitmq:/var/lib/rabbitmq
+
+networks:
+  postgres:
+    name: postgres
+  defectdojo:
+    name: defectdojo
+
+volumes:
+  defectdojo_media:
+  sock:
+  defectdojo_rabbitmq:

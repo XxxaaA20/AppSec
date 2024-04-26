@@ -1,0 +1,21 @@
+version: '3.9'
+services:
+  postgres:
+    image: postgres/postgres:v15.2
+    container_name: "postgresql"
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_PASSWORD: "password" # Пароль от учетки postgres
+      PGDATA: "/var/lib/postgresql/data/pgdata" #Каталог, куда будут сохраняться данные внутри контейнера
+    volumes:
+      - /opt/postgres/data:/var/lib/postgresql/data # -rw-r----- root root - прокидываем каталог с хоста в контейнер, чтобы при потере контейнера сохранились данные
+    mem_limit: 16G
+    cpus: 6
+    networks:
+      - postgres
+
+networks:
+  postgres:
+    name: postgres
+    driver: bridge
